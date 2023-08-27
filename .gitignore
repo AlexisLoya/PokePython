@@ -1,6 +1,9 @@
 # files
 .venv/
 *.html
+*.bd
+*.sqlite
+*.sqlite3
 chrome/
 
 .po
