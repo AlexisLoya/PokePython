@@ -1,8 +1,10 @@
 # files
+.idea/
 .venv/
 *.html
 *.bd
 *.sqlite
+*.db
 *.sqlite3
 chrome/
 
