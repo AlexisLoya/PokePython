@@ -1,10 +1,19 @@
-LIMIT = 20000000
-cfdis_download_counter = 20000000
+from main import DATABASE_PATH
+from pokemon import Pokemon, PokemonDAO
+from utils import DatabaseConnection
 
-invoices = [f"{i+1}" for i in range(1000)]
+if __name__ == '__main__':
+    with DatabaseConnection('pokedex.db') as conn:
+        dao = PokemonDAO(conn)
+        articuno: Pokemon = dao.get_by_name(name='Articuno')
+        pp: Pokemon = dao.get_by_name(name='Blastoise')
+        print(f'Articuno: {articuno.similar(pp.html)}')
+        articuno_variants = dao.get_variants(pokemon=articuno)
+        print(f'Articuno variants: {len(articuno_variants)}')
+        for pokemon in articuno_variants:
+            print(type(pokemon))
+            print(pokemon.name)
+            print(pokemon.id)
+            print(pokemon.generation)
+            print(pokemon.similar(pp.html))
 
-invoices = invoices[:LIMIT - cfdis_download_counter]
-
-print(len(invoices))
-print(invoices)
-print(cfdis_download_counter + len(invoices))
