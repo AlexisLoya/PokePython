@@ -10,7 +10,6 @@ def setup_database():
         id INTEGER PRIMARY KEY,
         name TEXT NOT NULL unique,
         generation INTEGER,
-        html TEXT NOT NULL,
         UNIQUE(name)
     ) 
     ''')
@@ -19,6 +18,7 @@ def setup_database():
         CREATE TABLE IF NOT EXISTS variants (
             id INTEGER PRIMARY KEY,
             pokemon_id INTEGER not null,
+            filename TEXT NOT NULL unique,
             html TEXT NOT NULL unique,
             FOREIGN KEY (pokemon_id) REFERENCES pokemons(id)
         )
