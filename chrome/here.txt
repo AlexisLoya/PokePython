@@ -1,0 +1,1 @@
+Download and save the chrome driver in the same folder as the script

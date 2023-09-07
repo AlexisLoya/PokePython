@@ -17,71 +17,70 @@ CHROME_DRIVER_PATH = './chrome/chromedriver.exe'
 WEB_URL = 'http://silph.co/'
 FOLDER_PATH = 'pokedex'
 DATABASE_PATH = 'pokedex.db'
+SLEEP_TIME = 0
+LIMIT_TRIES = 1000
 
 # logger
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def save_pokemon_html(pokemon, dao, html,):
-    pokemon_id = dao.save_pokemon(pokemon)
-    filename = determine_filename(pokemon)
-    dao.save_variant(pokemon_id, filename, html)
-    save_to_file(filename, html)
+class PokemonSaver:
+    def __init__(self, dao, web_driver, folder_path):
+        self.dao = dao
+        self.web_driver = web_driver
+        self.folder_path = folder_path
 
+    def fetch_html(self, url):
+        self.web_driver.get(url)
+        return self.web_driver.page_source
 
-def save_variants_html(pokemon, dao, html,):
-    filename = determine_filename(pokemon)
-    dao.save_variant(pokemon.id, filename, html)
-    save_to_file(filename, html)
+    def save_pokemon(self, counter):
+        html = self.fetch_html(WEB_URL)
+        matches = re.findall(r'<title>pokemon(/alt)?/(.*?).html</title>', html)
 
+        if not matches:
+            logging.error("Pokemon not found in HTML content.")
+            return counter
 
-def save_pokemon(counter):
-    options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
-    service = Service(CHROME_DRIVER_PATH)
-    driver = webdriver.Chrome(service=service, options=options)
+        pokemon_name = matches[0][1]
+        existing_pokemon = self.dao.get_pokemon_by_name(name=pokemon_name)
 
-    driver.get(WEB_URL)
-    html = driver.page_source
+        try:
+            if existing_pokemon:
+                self.handle_existing_pokemon(existing_pokemon, html)
+                counter += 1
+            else:
+                self.handle_new_pokemon(pokemon_name, html)
+                counter += 1
 
-    pattern = r'<title>pokemon(/alt)?/(.*?).html</title>'
-    matches = re.findall(pattern, html)
+        except Exception as e:
+            logging.error(f"Error: {e}")
 
-    with DatabaseConnection(DATABASE_PATH) as conn:
-        dao = PokemonDAO(conn)
+        return counter
 
-        if matches:
-            pokemon_name = matches[0][1]
-            existing_pokemon = dao.get_pokemon_by_name(name=pokemon_name)
-
-            try:
-                if existing_pokemon:
-                    logging.info(f"El Pokémon {pokemon_name} ya existe.")
-                    if dao.variant_already_exists(existing_pokemon.id, html):
-                        logging.info(f"El Pokémon {pokemon_name} ya existe.")
-                    else:
-                        logging.info(f"Guardando nueva variante para {pokemon_name}.")
-                        save_variants_html(existing_pokemon, dao, html)
-                else:
-
-                    pokemon = Pokemon(
-                        name=matches[0][1],
-                        generation=1,
-                    )
-
-                    logging.info(f"Guardando nuevo Pokémon {pokemon_name}.")
-                    save_pokemon_html(pokemon, dao, html)
-                    logging.info(f"El archivo se ha guardado como: {pokemon.name}.html")
-
-            except Exception as e:
-                logging.error(f"Error: {e}")
-                logging.error(f"Pokemon: {pokemon}")
-
+    def handle_existing_pokemon(self, pokemon, html):
+        logging.info(f"The Pokemon {pokemon.name} already exists.")
+        if self.dao.variant_already_exists(pokemon.id, html):
+            logging.info(f"the variant for {pokemon.name} already exists.")
         else:
-            logging.error("No se encontró el nombre del Pokémon en el contenido HTML.")
+            logging.info(f"Saving new variant for {pokemon.name}.")
+            self.save_variants_html(pokemon, html)
 
-    driver.quit()
-    return counter
+    def handle_new_pokemon(self, pokemon_name, html):
+        pokemon = Pokemon(name=pokemon_name, generation=1)
+        logging.info(f"Saving new Pokemon {pokemon_name}.")
+        self.save_pokemon_html(pokemon, html)
+
+    def save_pokemon_html(self, pokemon, html):
+        pokemon_id = self.dao.save_pokemon(pokemon)
+        filename = determine_filename(pokemon, is_variant=False)
+        self.dao.save_variant(pokemon_id, filename, html)
+        save_to_file(filename, html)
+
+    def save_variants_html(self, pokemon, html):
+        filename = determine_filename(pokemon)
+        self.dao.save_variant(pokemon.id, filename, html)
+        save_to_file(filename, html)
 
 
 def determine_filename(pokemon, is_variant=True):
@@ -109,9 +108,17 @@ def save_to_file(filename, content):
 if __name__ == '__main__':
     setup_database()
     counter = 0
-    while True:
-        if counter == 200:
-            break
-        counter = save_pokemon(counter)
-        logging.info(f"counter: {counter}")
-        time.sleep(0)
+
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')
+    service = Service(CHROME_DRIVER_PATH)
+    web_driver = webdriver.Chrome(service=service, options=options)
+
+    with DatabaseConnection(DATABASE_PATH) as conn:
+        dao = PokemonDAO(conn)
+        pokemon_saver = PokemonSaver(dao, web_driver, FOLDER_PATH)
+
+        while counter < LIMIT_TRIES:
+            counter = pokemon_saver.save_pokemon(counter)
+            logging.info(f"counter: {counter}")
+            time.sleep(SLEEP_TIME)

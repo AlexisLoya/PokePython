@@ -6,7 +6,6 @@
 *.sqlite
 *.db
 *.sqlite3
-chrome/
 
 .po
 # Byte-compiled / optimized / DLL files
